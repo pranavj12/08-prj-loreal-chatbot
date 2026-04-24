@@ -1,3 +1,36 @@
+const chatForm = document.getElementById("chatForm");
+const userInput = document.getElementById("userInput");
+const chatWindow = document.getElementById("chatWindow");
+const latestQuestion = document.getElementById("latestQuestion");
+
+const WORKER_URL = "https://loreal-chatbot.ppurohi5.workers.dev";
+
+const conversationHistory = [
+  {
+    role: "system",
+    content: `
+You are L'Oréal's Smart Beauty Advisor.
+
+Only answer beauty-related questions.
+Refuse unrelated questions politely.
+Be concise, elegant, and helpful.
+`,
+  },
+];
+
+function addMessage(role, text) {
+  const row = document.createElement("div");
+  row.className = `message-row ${role}`;
+
+  const bubble = document.createElement("div");
+  bubble.className = `message-bubble ${role === "user" ? "user-bubble" : "ai-bubble"}`;
+  bubble.textContent = text;
+
+  row.appendChild(bubble);
+  chatWindow.appendChild(row);
+  chatWindow.scrollTop = chatWindow.scrollHeight;
+}
+
 chatForm.addEventListener("submit", async (e) => {
   e.preventDefault();
 
@@ -7,49 +40,36 @@ chatForm.addEventListener("submit", async (e) => {
   latestQuestion.textContent = message;
   addMessage("user", message);
 
-  userInput.value = "";
-  userInput.disabled = true;
-  sendBtn.disabled = true;
+  conversationHistory.push({ role: "user", content: message });
 
-  addTypingMessage();
+  userInput.value = "";
 
   try {
     const response = await fetch(WORKER_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        userMessage: message,
-        conversationHistory: conversationHistory
+        messages: conversationHistory, // ✅ FIXED PAYLOAD
       }),
     });
 
     const data = await response.json();
 
-    removeTypingMessage();
-
     if (!response.ok) {
-      addMessage("assistant", `Error: ${data.error}`);
+      addMessage("ai", "Error: " + data.error);
       return;
     }
 
-    const reply = data.reply;
+    const reply = data.reply || "No response";
 
-    addMessage("assistant", reply);
+    addMessage("ai", reply);
 
-    // store history correctly
-    conversationHistory.push(
-      { role: "user", content: message },
-      { role: "assistant", content: reply }
-    );
-
-  } catch (error) {
-    removeTypingMessage();
-    addMessage("assistant", `Connection error: ${error.message}`);
-  } finally {
-    userInput.disabled = false;
-    sendBtn.disabled = false;
-    userInput.focus();
+    conversationHistory.push({
+      role: "assistant",
+      content: reply,
+    });
+  } catch (err) {
+    addMessage("ai", "Connection error");
+    console.error(err);
   }
 });
